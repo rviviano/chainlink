@@ -45,7 +45,7 @@ def process_options():
                   replaced by a segment of the same size from a sample within 
                   the input2 directory
 
-    Optional ARguments:
+    Optional Options:
 
     -v            Turn verbosity on - increases text output the script generates
 
@@ -66,19 +66,31 @@ def process_options():
     # Set number of cores to use for multiprocessing to 2 as a default
     cores = 2
 
+    # Checks that mandatory options provided. This variable should equal 4 
+    # before continuing execution of the script
+    mandatory_checks = 0
+
     # Get commandline options and arguments
-    options, _ = getopt.getopt(sys.argv[1:], ["input1=", "input2=", "output=",
-                                              "chunk_size=", "h", "m", "c", "v"])
+    options, _ = getopt.getopt(sys.argv[1:], "hvmc:", ["input1=", "input2=", 
+                               "output=", "chunk_size="])
 
     for opt, arg in options:
         if opt == "--input1":
-            input_dir1 = arg
+            if arg is not None:
+                input_dir1 = arg
+                mandatory_checks += 1
         if opt == "--input2": 
-            input_dir2 = arg 
+            if arg is not None:
+                input_dir2 = arg 
+                mandatory_checks += 1
         if opt == "--output":
-            output_dir = arg 
+            if arg is not None:
+                output_dir = arg
+                mandatory_checks += 1 
         if opt == "--chunk_size":
-            chunk_size = arg
+            if arg is not None:
+                chunk_size = arg
+                mandatory_checks += 1
         if opt == "-v":
             is_verbose = True
         if opt == "-m":
@@ -88,6 +100,12 @@ def process_options():
         if opt == "-h":
             print(usage)
             sys.exit(0)
+
+    # Make sure that arguments existed for all mandatory options
+    if mandatory_checks != 4:
+        print(os.linesep + 'Errors detected with mandatory options')
+        print(usage)
+        sys.exit(1)
 
     # Verify usability of passed arguments
     check_options(input_dir1, input_dir2, output_dir, chunk_size, usage)
@@ -188,9 +206,6 @@ def main():
                 print(wv_params)
             else:
                 continue
-
-
-    pass
 
 
 if __name__ == "__main__":
