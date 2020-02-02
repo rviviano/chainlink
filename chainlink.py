@@ -9,7 +9,7 @@
 # Dependencies
 from __future__ import print_function
 import os, sys, getopt, traceback
-import wave, sndhdr
+import wave, sndhdr, wavio
 import numpy as np 
 import multiprocessing as mp
 from os.path import isdir, isfile, abspath, join
@@ -183,12 +183,23 @@ def load_wav(wave_filepath):
 
         Output: Complete wave_read object and the named tuple with params
     """
-
+    # Open wav_read object and extract useful parameter information
     wav = wave.open(wave_filepath, 'rb')
     params = wav.getparams()
     framerate = wav.getframerate()
     nframes = wav.getnframes()
-    return wav, params, framerate, nframes
+
+    # Convert bytes object to numpy array. Relatively straightforward for
+    # 16 bit and 32 bit audio, pain in the ass for 24 bit audio. This is why the
+    # script is dependent on the wavio package  
+    wav_np = wavio.read(wave_filepath)                                           
+
+
+    return wav, params, framerate, nframes, wav_np
+
+
+def write_wav():
+    pass
 
 
 def convert_ms_to_frames(chunk_size_ms, framerate):
@@ -215,12 +226,20 @@ def main():
             if wv_hdr[0] == 'wav':
                 print('File is a wav, printing hdr')
                 print(wv_hdr)
-                wv, wv_params, wv_framerate, wv_nframes = load_wav(join(input_dir1, f))
+                wv, wv_params, wv_framerate, wv_nframes, wv_np = load_wav(join(input_dir1, f))
                 print('Printing wav params')
                 print(wv_params)
                 print('chunk size in ms ', chunk_size)
                 chunk_size_frms = convert_ms_to_frames(chunk_size, wv_framerate)
                 print('chunk size in frames ', chunk_size_frms)
+                # Sample width in bytes
+                print('sample width in bytes')
+                print(wv.getsampwidth())
+                # # Pull all frames from wav into a bytes object, convert to np vector
+                # wv_frames_byte = wv.readframes(wv_nframes)
+                # print(type(wv_frames_byte))
+                # # print(wv_frames_byte)
+                print(wv_np.data)
                 
             else:
                 continue
