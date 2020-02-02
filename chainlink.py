@@ -12,8 +12,9 @@ import os, sys, getopt, traceback
 import wave, sndhdr, wavio
 import numpy as np 
 import multiprocessing as mp
-from os.path import isdir, isfile, abspath, join
+from os.path import isdir, isfile, abspath, join, basename, splitext
 
+__version__ = "0.1.0"
 
 # Function Definitions
 def process_options():
@@ -190,10 +191,9 @@ def load_wav(wave_filepath):
     nframes = wav.getnframes()
 
     # Convert bytes object to numpy array. Relatively straightforward for
-    # 16 bit and 32 bit audio, pain in the ass for 24 bit audio. This is why the
-    # script is dependent on the wavio package  
+    # 16 bit and 32 bit audio, pain in the ass for 24 bit audio. This is why
+    # the script is dependent on the wavio package  
     wav_np = wavio.read(wave_filepath)                                           
-
 
     return wav, params, framerate, nframes, wav_np
 
@@ -220,29 +220,75 @@ def main():
     """
     input_dir1, input_dir2, output_dir, chunk_size, is_verbose, is_mp, cores = process_options()
 
+
+    # Store valid wav files for input dirs 1 and 2 into lists to avoid huge 
+    # indent blocks from checking file validity before working with them
+    input1_wavs = []
     for f in os.listdir(input_dir1):
         wv_hdr = sndhdr.what(join(input_dir1, f))
         if wv_hdr is not None:
             if wv_hdr[0] == 'wav':
-                print('File is a wav, printing hdr')
-                print(wv_hdr)
-                wv, wv_params, wv_framerate, wv_nframes, wv_np = load_wav(join(input_dir1, f))
-                print('Printing wav params')
-                print(wv_params)
-                print('chunk size in ms ', chunk_size)
-                chunk_size_frms = convert_ms_to_frames(chunk_size, wv_framerate)
-                print('chunk size in frames ', chunk_size_frms)
-                # Sample width in bytes
-                print('sample width in bytes')
-                print(wv.getsampwidth())
-                # # Pull all frames from wav into a bytes object, convert to np vector
-                # wv_frames_byte = wv.readframes(wv_nframes)
-                # print(type(wv_frames_byte))
-                # # print(wv_frames_byte)
-                print(wv_np.data)
-                
-            else:
-                continue
+                input1_wavs.append(join(input_dir1, f))
+
+    input2_wavs = []
+    for f in os.listdir(input_dir2):
+        wv_hdr = sndhdr.what(join(input_dir2, f))
+        if wv_hdr is not None:
+            if wv_hdr[0] == 'wav':
+                input2_wavs.append(join(input_dir2, f))
+
+
+    for f in input1_wavs:
+        # TODO: Encapsulate this in a process_wav function
+        # Define output filename
+        output_file = join(output_dir, splitext(basename(f))[0] + "_chainlinked.wav")
+        print('\nInput: ', join(f))
+        print('Output: ', output_file)
+        # Load the input wavfile to be recreated with the chain links of other wavs
+        wv, wv_params, wv_framerate, wv_nframes, wv_np = load_wav(f)
+        # Get sample width (number of bytes per frame)
+        wv_samplewidth = wv.getsampwidth()
+        # Convert chunk size from milliseconds to number of frames
+        chunk_size_frms = convert_ms_to_frames(chunk_size, wv_framerate)
+        # Get the number of chunks for the input wav file
+        nchunks_wv1, remainder = divmod(wv_nframes, chunk_size_frms)
+        print("\nNumber of chunks to work with: ", nchunks_wv1, "\n")
+        # Create array for new audio
+        new_wv_np = np.zeros((wv_np.data.shape))
+        # Go through the chunks and find chain links from the wavs in input2
+        # that correlate well with the chunks from audio 1, try to recreate 
+        # audio 1
+        for i in range(nchunks_wv1):
+            print('Working with chunk ', i+1)
+            wv1_chunk = wv_np.data[i*chunk_size_frms:i*chunk_size_frms+chunk_size_frms, :]
+            best_wv2_chunk = np.zeros(wv1_chunk.shape)
+            best_corr = 0
+            for g in input2_wavs:
+                print('Analyzing: ', g)
+                _, _, _, wv2_nframes, wv2_np = load_wav(g)
+                nchunks_wv2, remainder2 = divmod(wv2_nframes, chunk_size_frms)
+                for j in range(nchunks_wv2):
+                    wv2_chunk = wv2_np.data[j*chunk_size_frms:j*chunk_size_frms+chunk_size_frms, :]
+                    corr_count = 0
+                    chunk_corr = 0
+                    for wv1_channel in range(wv1_chunk.shape[1]):
+                        for wv2_channel in range(wv2_chunk.shape[1]):
+                            corr_count += 1
+                            channel_corr = np.corrcoef(wv1_chunk[:, wv1_channel], 
+                                                       wv2_chunk[:, wv2_channel])[0,1]
+                            if channel_corr == np.nan:
+                                channel_corr = 0
+
+                            chunk_corr += channel_corr
+                    chunk_corr = chunk_corr/corr_count
+                    if chunk_corr > best_corr:
+                        best_wv2_chunk = np.copy(wv2_chunk)
+                        best_corr = chunk_corr
+            
+            new_wv_np[i*chunk_size_frms:i*chunk_size_frms+chunk_size_frms, :] = np.copy(best_wv2_chunk)
+        # Write output to a wav file
+        wavio.write(output_file, new_wv_np, rate=wv_framerate, sampwidth=wv_samplewidth)
+
 
 
 if __name__ == "__main__":
