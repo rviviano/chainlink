@@ -89,7 +89,7 @@ def process_options():
                 mandatory_checks += 1 
         if opt == "--chunk_size":
             if arg is not None:
-                chunk_size = arg
+                chunk_size = int(arg)
                 mandatory_checks += 1
         if opt == "-v":
             is_verbose = True
@@ -154,7 +154,7 @@ def check_options(input_dir1, input_dir2, output_dir, chunk_size, usage):
     # Check if output directory exists. If it doesn't try to make the dir tree
     if not isdir(output_dir):
         try:
-            os.mkdirs(output_dir)
+            os.makedirs(output_dir)
         except:
             traceback.print_exc(file=sys.stdout)
             is_invalid = True
@@ -177,7 +177,7 @@ def check_options(input_dir1, input_dir2, output_dir, chunk_size, usage):
 def load_wav(wave_filepath):
     """ 
         Convenience function to load the wav file but also to get all the 
-        additional data into another variable to use later
+        additional data into other variables to use later
 
         Input: Filepath to wav 
 
@@ -186,7 +186,21 @@ def load_wav(wave_filepath):
 
     wav = wave.open(wave_filepath, 'rb')
     params = wav.getparams()
-    return wav, params
+    framerate = wav.getframerate()
+    nframes = wav.getnframes()
+    return wav, params, framerate, nframes
+
+
+def convert_ms_to_frames(chunk_size_ms, framerate):
+    """ 
+        Convert chunk size in milleconds to chunk size in number of frames
+    
+        Framerate is in hz (cycles per second), chunk_size is in ms
+
+        So we need to multiply framerate by chunk_size_ms/1000 to get the
+        chunk size in frames. Round down to nearest int.
+    """
+    return int(framerate * (chunk_size_ms / 1000.0))
 
 
 def main():
@@ -201,9 +215,13 @@ def main():
             if wv_hdr[0] == 'wav':
                 print('File is a wav, printing hdr')
                 print(wv_hdr)
-                wv, wv_params = load_wav(join(input_dir1, f))
+                wv, wv_params, wv_framerate, wv_nframes = load_wav(join(input_dir1, f))
                 print('Printing wav params')
                 print(wv_params)
+                print('chunk size in ms ', chunk_size)
+                chunk_size_frms = convert_ms_to_frames(chunk_size, wv_framerate)
+                print('chunk size in frames ', chunk_size_frms)
+                
             else:
                 continue
 
