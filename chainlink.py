@@ -41,7 +41,7 @@ def process_options():
 
     --output      Directory where you want the script to save output
 
-    --chunk_size  Number between 10 and 1000. The chunk size in milleseconds, 
+    --chunk_size  Number between 1 and 1000. The chunk size in milleseconds, 
                   where a chunk is the segment of a sample from input1 that gets
                   replaced by a segment of the same size from a sample within 
                   the input2 directory
@@ -162,11 +162,11 @@ def check_options(input_dir1, input_dir2, output_dir, chunk_size, usage):
 
     # Verify that chunk size is between 10 and 1000
     if isinstance(chunk_size, int):
-        if (chunk_size < 10) or (chunk_size > 1000):
-            print("Chunk size must be between 10 and 1000 (milliseconds)")
+        if (chunk_size < 1) or (chunk_size > 1000):
+            print("Chunk size must be between 1 and 1000 (milliseconds)")
             is_invalid = True
     else:
-        print("Chunk size must be an integer between 10 and 1000")
+        print("Chunk size must be an integer between 1 and 1000")
         is_invalid = True
             
     # If problem(s) with arguments, print usage and exit
