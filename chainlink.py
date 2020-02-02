@@ -264,7 +264,7 @@ def main():
             best_wv2_chunk = np.zeros(wv1_chunk.shape)
             best_corr = 0
             for g in input2_wavs:
-                print('Analyzing: ', g)
+                # print('Analyzing: ', g)
                 _, _, _, wv2_nframes, wv2_np = load_wav(g)
                 nchunks_wv2, remainder2 = divmod(wv2_nframes, chunk_size_frms)
                 for j in range(nchunks_wv2):
