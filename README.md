@@ -27,7 +27,7 @@ ARE FINE.
 
     --output      Directory where you want the script to save output
 
-    --chunk_size  Number between 10 and 1000. The chunk size in milleseconds, 
+    --chunk_size  Number between 1 and 1000. The chunk size in milleseconds, 
                   where a chunk is the segment of a sample from input1 that gets
                   replaced by a segment of the same size from a sample within 
                   the input2 directory
