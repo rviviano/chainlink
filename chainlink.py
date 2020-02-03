@@ -14,7 +14,9 @@ import numpy as np
 import multiprocessing as mp
 from os.path import isdir, isfile, abspath, join, basename, splitext
 
-__version__ = "0.1.0"
+__version__ = "0.1.1"
+
+# TODO: Implement a more standardized test suite
 
 # Function Definitions
 def process_options():
@@ -175,6 +177,11 @@ def check_options(input_dir1, input_dir2, output_dir, chunk_size, usage):
         sys.exit(1)
 
 
+def get_valid_wavs():
+    # TODO
+    pass
+
+
 def load_wav(wave_filepath):
     """ 
         Convenience function to load the wav file but also to get all the 
@@ -184,6 +191,10 @@ def load_wav(wave_filepath):
 
         Output: Complete wave_read object and the named tuple with params
     """
+    # TODO: Load addition parameters, nchannels and sample width, to help with
+    # converting wav files in input dir 2 to have the same parameters as the 
+    # wav file from input dir 1 to be resynthesized
+
     # Open wav_read object and extract useful parameter information
     wav = wave.open(wave_filepath, 'rb')
     params = wav.getparams()
@@ -199,6 +210,17 @@ def load_wav(wave_filepath):
 
 
 def write_wav():
+    # TODO
+    pass
+
+
+def process_wav():
+    # TODO
+    pass
+
+
+def smooth_data():
+    # TODO
     pass
 
 
@@ -224,6 +246,7 @@ def main():
     # Store valid wav files for input dirs 1 and 2 into lists to avoid huge 
     # indent blocks from checking file validity before working with them
     input1_wavs = []
+    # TODO: Encapsulate this logic into a get_valid_wavs function
     for f in os.listdir(input_dir1):
         wv_hdr = sndhdr.what(join(input_dir1, f))
         if wv_hdr is not None:
@@ -239,11 +262,13 @@ def main():
 
 
     for f in input1_wavs:
-        # TODO: Encapsulate this in a process_wav function
+        # TODO: Encapsulate the code within this for loop into a process_wav function
         # Define output filename
         output_file = join(output_dir, splitext(basename(f))[0] + "_chainlinked.wav")
-        print('\nInput: ', join(f))
-        print('Output: ', output_file)
+        if is_verbose:
+            print('\nInput: ', join(f))
+            print('Output: ', output_file)
+            print('Analyzing file for resynthesis...')
         # Load the input wavfile to be recreated with the chain links of other wavs
         wv, wv_params, wv_framerate, wv_nframes, wv_np = load_wav(f)
         # Get sample width (number of bytes per frame)
@@ -251,41 +276,75 @@ def main():
         # Convert chunk size from milliseconds to number of frames
         chunk_size_frms = convert_ms_to_frames(chunk_size, wv_framerate)
         # Get the number of chunks for the input wav file
+        # TODO: work with the remainders rather than just leaving that last part of the waveform as 0s
         nchunks_wv1, remainder = divmod(wv_nframes, chunk_size_frms)
-        print("\nNumber of chunks to work with: ", nchunks_wv1, "\n")
+        if is_verbose:
+            print("\nNumber of chunks to work with: ", nchunks_wv1, "\n")
         # Create array for new audio
         new_wv_np = np.zeros((wv_np.data.shape))
+
+        # Create vector the size nchunks_wv1 to keep track of how well the chunks
+        # placed in new_wv_np compare to the chunks analyzed when a new file is opened
+        best_corr = np.zeros((nchunks_wv1, 1))
+        
         # Go through the chunks and find chain links from the wavs in input2
         # that correlate well with the chunks from audio 1, try to recreate 
-        # audio 1
-        for i in range(nchunks_wv1):
-            print('Working with chunk ', i+1)
-            wv1_chunk = wv_np.data[i*chunk_size_frms:i*chunk_size_frms+chunk_size_frms, :]
-            best_wv2_chunk = np.zeros(wv1_chunk.shape)
-            best_corr = 0
-            for g in input2_wavs:
-                # print('Analyzing: ', g)
-                _, _, _, wv2_nframes, wv2_np = load_wav(g)
-                nchunks_wv2, remainder2 = divmod(wv2_nframes, chunk_size_frms)
+        # audio 1. Go file by file for the wavs in input_dir2, if a chunk of one
+        # file has a better correlation than a chunk previously placed in 
+        # new_wv_np, replace the chunk and update the corresponding location in 
+        # the best corr vector.
+
+        # Compare all chunks from wav1 with all chunks from wav2, one file at a time
+        for g in input2_wavs:
+            if is_verbose:
+                print('Analyzing: ', g)
+            # TODO: convert wv2_np to have the same parameters as wv1_np
+            wv2, wv_params2, wv_framerate2, wv2_nframes, wv2_np = load_wav(g)
+            # TODO: Write convert wav function that takes current wav parameters
+            #       (e.g. bit depth sample rate, nchannels, and converts
+            nchunks_wv2, _ = divmod(wv2_nframes, chunk_size_frms)
+            for i in range(nchunks_wv1):
+                if is_verbose:
+                    print('Working with chunk ', i+1)
+                wv1_chunk = wv_np.data[i*chunk_size_frms:i*chunk_size_frms+chunk_size_frms, :]
+                # TODO: Implement slow, medium, and fast modes that move 1/8th, 
+                #       1/4, 1/2, or a full chunk at a time. Currently, the code 
+                #       moves a full chunk at a time. Default to 1/4 window move 
+                #       at a time to mitigate phasing issues.
                 for j in range(nchunks_wv2):
                     wv2_chunk = wv2_np.data[j*chunk_size_frms:j*chunk_size_frms+chunk_size_frms, :]
                     corr_count = 0
                     chunk_corr = 0
+                    # TODO: Change this or implement different correlation types.
+                    #       It might not make sense to correlate the left channel 
+                    #       of one wav with the right channel of another wav
+                    #       and then average it with the other 3 correlations 
+                    #       (LL, RR, and RL). That's what this code block 
+                    #       currently does. Maybe there should be a "full corr"
+                    #       option and a "same channel corr" option.
+                    # TODO: Also, implement different ways of doing this 
+                    #       similarity check. Maybe implement mahalanobis and
+                    #       manhattan distance functions. You could stack the 
+                    #       channels into a single vector for each wav and then
+                    #       compare the vectors with distance functions. Choose 
+                    #       the best chunk based on shortest distance...
+                    # TODO: Implement a similarity metric that takes advantage 
+                    #       of FFT and looks at similarity across maybe 10 
+                    #       frequency bins.
                     for wv1_channel in range(wv1_chunk.shape[1]):
                         for wv2_channel in range(wv2_chunk.shape[1]):
                             corr_count += 1
                             channel_corr = np.corrcoef(wv1_chunk[:, wv1_channel], 
-                                                       wv2_chunk[:, wv2_channel])[0,1]
+                                                        wv2_chunk[:, wv2_channel])[0,1]
                             if channel_corr == np.nan:
                                 channel_corr = 0
 
                             chunk_corr += channel_corr
                     chunk_corr = chunk_corr/corr_count
-                    if chunk_corr > best_corr:
-                        best_wv2_chunk = np.copy(wv2_chunk)
-                        best_corr = chunk_corr
+                    if chunk_corr > best_corr[i, 0]:
+                        new_wv_np[i*chunk_size_frms:i*chunk_size_frms+chunk_size_frms, :] = np.copy(wv2_chunk)
+                        best_corr[i, 0] = chunk_corr
             
-            new_wv_np[i*chunk_size_frms:i*chunk_size_frms+chunk_size_frms, :] = np.copy(best_wv2_chunk)
         # Write output to a wav file
         wavio.write(output_file, new_wv_np, rate=wv_framerate, sampwidth=wv_samplewidth)
 
