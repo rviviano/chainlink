@@ -14,6 +14,7 @@ import numpy as np
 import multiprocessing as mp
 from os.path import isdir, isfile, abspath, join, basename, splitext
 
+# Meh, updated whenever I feel like it
 __version__ = "0.1.1"
 
 # TODO: Implement a more standardized test suite
@@ -57,6 +58,12 @@ def process_options():
     -c            Number of cores to use, defaults to 2 if multiprocessing is 
                   specified but the user doesn't pass an argument to this option
 
+    -n            Normalization method (0-2): 0="None", 1="Max", 2="Stdev". 
+                  Defaults to 1 ("Max").
+
+    -t            Specifies comparision type (0-2). 0="Pearson", 1="Manhattan",
+                  or 2="Mahalanobis". Defaults to "Pearson"
+
     -h            Print this usage message and exit
     """
 
@@ -65,6 +72,12 @@ def process_options():
 
     # Set multiprocessing to false
     is_mp = False
+
+    # Set comparison type to Pearson correlation
+    compare_type = "Pearson"
+
+    # Set normalization method to "None" (Not None type).
+    normalization_type = "Max"
 
     # Set number of cores to use for multiprocessing to 2 as a default
     cores = 2
@@ -100,6 +113,10 @@ def process_options():
             is_mp = True
         if opt == "-c":
             cores = arg
+        if opt == "-n":
+            normalization_type = arg
+        if opt == "-t":
+            compare_type = arg
         if opt == "-h":
             print(usage)
             sys.exit(0)
@@ -111,13 +128,13 @@ def process_options():
         sys.exit(1)
 
     # Verify usability of passed arguments
-    check_options(input_dir1, input_dir2, output_dir, chunk_size, usage)
+    check_options(input_dir1, input_dir2, output_dir, chunk_size, compare_type, normalization_type, usage)
 
     # Return options for audio processing
-    return input_dir1, input_dir2, output_dir, chunk_size, is_verbose, is_mp, cores
+    return input_dir1, input_dir2, output_dir, chunk_size, is_verbose, is_mp, cores, compare_type, normalization_type
 
 
-def check_options(input_dir1, input_dir2, output_dir, chunk_size, usage):
+def check_options(input_dir1, input_dir2, output_dir, chunk_size, compare_type, normalization_type, usage):
     """
         Make sure the supplied options are meaningful. Separate from the 
         process_options function to curb function length.
@@ -170,7 +187,19 @@ def check_options(input_dir1, input_dir2, output_dir, chunk_size, usage):
     else:
         print("Chunk size must be an integer between 1 and 1000")
         is_invalid = True
-            
+
+    # Check that comparison type is valid
+    if compare_type not in ("Pearson", "Manhattan", "Mahalanobis"):
+        print('Comparison type (-t) must be either 0, 1, or 2. 0="Pearson", ', 
+              '1="Manhattan", and 2="Mahalanobis".')
+        is_invalid = True
+
+    # Check that normalization type is valid
+    if normalization_type not in ("None", "Max", "Stdev"):
+        print('Comparison type (-t) must be either 0, 1, or 2. 0="None", ', 
+              '1="Max", and 2="Stdev"')
+        is_invalid = True
+    
     # If problem(s) with arguments, print usage and exit
     if is_invalid:
         print(usage)
@@ -193,7 +222,7 @@ def load_wav(wave_filepath):
     """
     # TODO: Load addition parameters, nchannels and sample width, to help with
     # converting wav files in input dir 2 to have the same parameters as the 
-    # wav file from input dir 1 to be resynthesized
+    # wav file from input dir 1 
 
     # Open wav_read object and extract useful parameter information
     wav = wave.open(wave_filepath, 'rb')
@@ -202,7 +231,7 @@ def load_wav(wave_filepath):
     nframes = wav.getnframes()
 
     # Convert bytes object to numpy array. Relatively straightforward for
-    # 16 bit and 32 bit audio, pain in the ass for 24 bit audio. This is why
+    # 16 bit and 32 bit audio, pain for 24 bit audio. This is why
     # the script is dependent on the wavio package  
     wav_np = wavio.read(wave_filepath)                                           
 
@@ -213,6 +242,58 @@ def write_wav():
     # TODO
     pass
 
+
+def match_wav_params():
+    """
+        Takes two wav files and their parameters and and converts the second 
+        wav to have the same parameters as the first.
+    """
+    # TODO
+    pass
+
+
+def normalize_chunk(chunk1, chunk2, normalization_type):
+    """
+        Takes a chunk from input wav 1 (the wav being resynthesized) and the
+        best-fitting chunk from the set of wavs in input dir 2. Also takes the
+        normalization_type parameter set by the user from the command line.
+
+        Roughly match the amplitude of the replacement chunk to the original 
+        chunk based on the normalization type.
+
+        If not mono, scale each channel separately.
+
+        If normalization_type == "Max", scale chunk two by the following
+        max(chunk1)/max(chunk2)
+
+        If normalization_type == "Stdev", scale chunk two with the following
+        y = mean(chunk1) + (x - mean(chunk2)) x stdev(chunk1)/stdev(chunk2),
+        where x is original vector for chunk2 and y is the vector after scaling
+
+        return new_chunk2
+    """
+
+    if normalization_type == "Max":
+        # TODO: Untested
+        new_chunk2 = np.zeros(chunk2.shape)
+        # Process channels separately. At this point in the script, the 
+        # number of channels should be equal for chunks 1 and 2
+        for chn in range(chunk2.shape[1]):
+            max1 = np.max(chunk1[:, chn])
+            max2 = np.max(chunk2[:, chn])
+            new_chunk2[:, chn] = chunk2[:, chn] * max1/max2
+        
+    elif normalization_type == "Stdev":
+        # TODO: Untested
+        mean1 = np.mean(chunk1)
+        mean2 = np.mean(chunk2)
+        s1 = np.std(chunk1, ddof=1)
+        s2 = np.std(chunk2, ddof=1)
+        for chn in range(chunk2.shape[1]):
+            new_chunk2[:, chn] = mean1 + (chunk2[:, chn] - mean2) * s1/s2
+
+    return new_chunk2
+        
 
 def process_wav():
     # TODO
@@ -291,8 +372,8 @@ def main():
         # that correlate well with the chunks from audio 1, try to recreate 
         # audio 1. Go file by file for the wavs in input_dir2, if a chunk of one
         # file has a better correlation than a chunk previously placed in 
-        # new_wv_np, replace the chunk and update the corresponding location in 
-        # the best corr vector.
+        # new_wv_np, replace the chunk and update the correlation/distance value 
+        # at the corresponding location in the best corr vector.
 
         # Compare all chunks from wav1 with all chunks from wav2, one file at a time
         for g in input2_wavs:
