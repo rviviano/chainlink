@@ -64,6 +64,14 @@ def process_options():
     -t            Specifies comparision type (0-2). 0="Pearson", 1="Manhattan",
                   or 2="Mahalanobis". Defaults to "Pearson"
 
+    -f            "Full correlation." If this option is specified, than 
+                  correlations are taken for every pair of channels across two
+                  wavs, e.g., Left-Left, Left-Right, Right-Left, and Right-Right
+                  for stereo audio. The average of these correlations is then
+                  taken to determine if a chunk of wav 2 will be used in the
+                  resynthesis of wav 1. If this option is not specified,
+                  only corresponding channels are correlated, e.g., LL and RR.
+
     -h            Print this usage message and exit
     """
 
@@ -78,6 +86,9 @@ def process_options():
 
     # Set normalization method to "None" (Not None type).
     normalization_type = "Max"
+
+    # Specify if full-correlation or like-channel correlation
+    is_full_correlation = False
 
     # Set number of cores to use for multiprocessing to 2 as a default
     cores = 2
@@ -114,12 +125,29 @@ def process_options():
         if opt == "-c":
             cores = arg
         if opt == "-n":
-            normalization_type = arg
+            if arg == 0:
+                normalization_type = "None"
+            elif arg == 1:
+                normalization_type = "Max"
+            elif arg == 2:
+                normalization_type = "Stdev"
+            else:
+                print("Invalid normalization type, ", arg, ". Defaulting to 'Max'")
         if opt == "-t":
-            compare_type = arg
+            if arg == 0:
+                compare_type = "Pearson"
+            elif arg == 1:
+                compare_type = "Manhattan"
+            elif arg == 2:
+                compare_type = "Mahalanobis"
+            else:
+                print("Invalid comparison type, ", arg, ". Defaulting to 'Pearson'")
+        if opt == "-f":
+            is_full_correlation = True
         if opt == "-h":
             print(usage)
             sys.exit(0)
+
 
     # Make sure that arguments existed for all mandatory options
     if mandatory_checks != 4:
@@ -128,13 +156,13 @@ def process_options():
         sys.exit(1)
 
     # Verify usability of passed arguments
-    check_options(input_dir1, input_dir2, output_dir, chunk_size, compare_type, normalization_type, usage)
+    check_options(input_dir1, input_dir2, output_dir, chunk_size, usage)
 
     # Return options for audio processing
-    return input_dir1, input_dir2, output_dir, chunk_size, is_verbose, is_mp, cores, compare_type, normalization_type
+    return input_dir1, input_dir2, output_dir, chunk_size, is_verbose, is_mp, cores, compare_type, normalization_type, is_full_correlation
 
 
-def check_options(input_dir1, input_dir2, output_dir, chunk_size, compare_type, normalization_type, usage):
+def check_options(input_dir1, input_dir2, output_dir, chunk_size, usage):
     """
         Make sure the supplied options are meaningful. Separate from the 
         process_options function to curb function length.
@@ -186,18 +214,6 @@ def check_options(input_dir1, input_dir2, output_dir, chunk_size, compare_type, 
             is_invalid = True
     else:
         print("Chunk size must be an integer between 1 and 1000")
-        is_invalid = True
-
-    # Check that comparison type is valid
-    if compare_type not in ("Pearson", "Manhattan", "Mahalanobis"):
-        print('Comparison type (-t) must be either 0, 1, or 2. 0="Pearson", ', 
-              '1="Manhattan", and 2="Mahalanobis".')
-        is_invalid = True
-
-    # Check that normalization type is valid
-    if normalization_type not in ("None", "Max", "Stdev"):
-        print('Comparison type (-t) must be either 0, 1, or 2. 0="None", ', 
-              '1="Max", and 2="Stdev"')
         is_invalid = True
     
     # If problem(s) with arguments, print usage and exit
@@ -267,7 +283,7 @@ def normalize_chunk(chunk1, chunk2, normalization_type):
         max(chunk1)/max(chunk2)
 
         If normalization_type == "Stdev", scale chunk two with the following
-        y = mean(chunk1) + (x - mean(chunk2)) x stdev(chunk1)/stdev(chunk2),
+        y = mean(chunk1) + (x - mean(chunk2)) * stdev(chunk1)/stdev(chunk2),
         where x is original vector for chunk2 and y is the vector after scaling
 
         return new_chunk2
@@ -321,7 +337,7 @@ def main():
     """
         TODO: Write this docstring
     """
-    input_dir1, input_dir2, output_dir, chunk_size, is_verbose, is_mp, cores = process_options()
+    input_dir1, input_dir2, output_dir, chunk_size, is_verbose, is_mp, cores, compare_type, normalization_type, is_full_correlation = process_options()
 
 
     # Store valid wav files for input dirs 1 and 2 into lists to avoid huge 
@@ -393,17 +409,7 @@ def main():
                 #       moves a full chunk at a time. Default to 1/4 window move 
                 #       at a time to mitigate phasing issues.
                 for j in range(nchunks_wv2):
-                    wv2_chunk = wv2_np.data[j*chunk_size_frms:j*chunk_size_frms+chunk_size_frms, :]
-                    corr_count = 0
-                    chunk_corr = 0
-                    # TODO: Change this or implement different correlation types.
-                    #       It might not make sense to correlate the left channel 
-                    #       of one wav with the right channel of another wav
-                    #       and then average it with the other 3 correlations 
-                    #       (LL, RR, and RL). That's what this code block 
-                    #       currently does. Maybe there should be a "full corr"
-                    #       option and a "same channel corr" option.
-                    # TODO: Also, implement different ways of doing this 
+                    # TODO: Implement different ways of doing this 
                     #       similarity check. Maybe implement mahalanobis and
                     #       manhattan distance functions. You could stack the 
                     #       channels into a single vector for each wav and then
@@ -412,11 +418,30 @@ def main():
                     # TODO: Implement a similarity metric that takes advantage 
                     #       of FFT and looks at similarity across maybe 10 
                     #       frequency bins.
-                    for wv1_channel in range(wv1_chunk.shape[1]):
-                        for wv2_channel in range(wv2_chunk.shape[1]):
+                    wv2_chunk = wv2_np.data[j*chunk_size_frms:j*chunk_size_frms+chunk_size_frms, :]
+                    corr_count = 0
+                    chunk_corr = 0
+
+                    if is_full_correlation:
+                        # Correlate every channel in wv1 with every channel in wv2
+                        # and then take the average of all those correlations
+                        for wv1_channel in range(wv1_chunk.shape[1]):
+                            for wv2_channel in range(wv2_chunk.shape[1]):
+                                corr_count += 1
+                                channel_corr = np.corrcoef(wv1_chunk[:, wv1_channel], 
+                                                            wv2_chunk[:, wv2_channel])[0,1]
+                                if channel_corr == np.nan:
+                                    channel_corr = 0
+
+                                chunk_corr += channel_corr
+                    else:
+                        # Only correlate like-channels and take the average of the
+                        # correlations. Assume that the number of channels in wv2
+                        # are equivalent to the number of channels in wv1
+                        # TODO: enforce this assumption
+                        for chnl in range(wv1_chunk.shape[1]):
                             corr_count += 1
-                            channel_corr = np.corrcoef(wv1_chunk[:, wv1_channel], 
-                                                        wv2_chunk[:, wv2_channel])[0,1]
+                            channel_corr = np.corrcoef(wv1_chunk[:, chnl], wv2_chunk[:, chnl])[0,1]
                             if channel_corr == np.nan:
                                 channel_corr = 0
 
