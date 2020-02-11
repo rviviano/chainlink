@@ -1,20 +1,23 @@
 # ChainLink
  Concatenative Synthesis with Python
 
-# Dependencies 
+## Dependencies 
 numpy, wavio
 
-# IMPORTANT NOTEs:
+## Important Notess:
 This software is very early days and therefore probably very buggy. It doesn't
 assume a certain sample rate, but it does kinda assume that all the input files
 have the same parameters. Furthermore, it works if all the input wavs are 
 1-channel or if all the input wavs are 2-channel, but I'm fairly certain the 
 script will break if you try to feed it 1-channel and 2-channel input at the 
-same time. FINALLY,DO NOT FEED IT 32-BIT FLOAT FILES. 32-BIT INT AND LOWER 
-ARE FINE.
+same time. Finally, do not feed it 32-bit float files. 32-bit int and lower are 
+fine. This is a limitation of the wave library. I'll look into alternative
+options soon.
 
- Usage: python chainlink.py --input1 <arg> --input2 <arg> --output <arg> 
-                            --chunk_size <arg> [-v] [-m] [-c cores] [-h]
+ Usage: 
+ 
+    python chainlink.py --input1 <arg> --input2 <arg> --output <arg> 
+                        --chunk_size <arg> [-v] [-m] [-c cores] [-h]
 
     Mandatory Options:
 
