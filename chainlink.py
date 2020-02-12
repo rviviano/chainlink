@@ -39,8 +39,8 @@ def process_options():
                   synthesis. Can contain other files, but this script will only
                   process the wavs within.
 
-    --input2      Directory conatining the "chain links," or a bunch of wavs that
-                  the script will use to recreate the wavs in 'input1'
+    --input2      Directory conatining the "chain links," or a bunch of wavs 
+                  that the script will use to recreate the wavs in 'input1'
 
     --output      Directory where you want the script to save output
 
@@ -132,7 +132,8 @@ def process_options():
             elif arg == 2:
                 normalization_type = "Stdev"
             else:
-                print("Invalid normalization type, ", arg, ". Defaulting to 'Max'")
+                print("Invalid normalization type, ", arg, 
+                      ". Defaulting to 'Max'")
         if opt == "-t":
             if arg == 0:
                 compare_type = "Pearson"
@@ -141,7 +142,8 @@ def process_options():
             elif arg == 2:
                 compare_type = "Mahalanobis"
             else:
-                print("Invalid comparison type, ", arg, ". Defaulting to 'Pearson'")
+                print("Invalid comparison type, ", arg, 
+                      ". Defaulting to 'Pearson'")
         if opt == "-f":
             is_full_correlation = True
         if opt == "-h":
@@ -453,7 +455,6 @@ def main():
             
         # Write output to a wav file
         wavio.write(output_file, new_wv_np, rate=wv_framerate, sampwidth=wv_samplewidth)
-
 
 
 if __name__ == "__main__":
