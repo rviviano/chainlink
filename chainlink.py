@@ -224,9 +224,17 @@ def check_options(input_dir1, input_dir2, output_dir, chunk_size, usage):
         sys.exit(1)
 
 
-def get_valid_wavs():
-    # TODO
-    pass
+def get_valid_wavs(input_dir):
+    """ Scan directory for wav files, store in list, then return the list. """
+    valid_wavs = []
+
+    for f in os.listdir(input_dir):
+        wv_hdr = sndhdr.what(join(input_dir, f))
+        if wv_hdr is not None:
+            if wv_hdr[0] == 'wav':
+                valid_wavs.append(join(input_dir, f))
+
+    return valid_wavs
 
 
 def load_wav(wave_filepath):
@@ -310,6 +318,10 @@ def normalize_chunk(chunk1, chunk2, normalization_type):
         for chn in range(chunk2.shape[1]):
             new_chunk2[:, chn] = mean1 + (chunk2[:, chn] - mean2) * s1/s2
 
+    # Make sure the new array has the same dtype as the original. This will lead 
+    # to minor information loss as 64-bit float downcasts to 32-bit int at best.
+    new_chunk2 = new_chunk2.astype(chunk2.dtype, casting='unsafe')
+
     return new_chunk2
         
 
@@ -335,6 +347,9 @@ def convert_ms_to_frames(chunk_size_ms, framerate):
     return int(framerate * (chunk_size_ms / 1000.0))
 
 
+
+
+
 def main():
     """
         TODO: Write this docstring
@@ -344,21 +359,8 @@ def main():
 
     # Store valid wav files for input dirs 1 and 2 into lists to avoid huge 
     # indent blocks from checking file validity before working with them
-    input1_wavs = []
-    # TODO: Encapsulate this logic into a get_valid_wavs function
-    for f in os.listdir(input_dir1):
-        wv_hdr = sndhdr.what(join(input_dir1, f))
-        if wv_hdr is not None:
-            if wv_hdr[0] == 'wav':
-                input1_wavs.append(join(input_dir1, f))
-
-    input2_wavs = []
-    for f in os.listdir(input_dir2):
-        wv_hdr = sndhdr.what(join(input_dir2, f))
-        if wv_hdr is not None:
-            if wv_hdr[0] == 'wav':
-                input2_wavs.append(join(input_dir2, f))
-
+    input1_wavs = get_valid_wavs(input_dir1)
+    input2_wavs = get_valid_wavs(input_dir2)
 
     for f in input1_wavs:
         # TODO: Encapsulate the code within this for loop into a process_wav function
@@ -375,10 +377,12 @@ def main():
         # Convert chunk size from milliseconds to number of frames
         chunk_size_frms = convert_ms_to_frames(chunk_size, wv_framerate)
         # Get the number of chunks for the input wav file
+
         # TODO: work with the remainders rather than just leaving that last part of the waveform as 0s
         nchunks_wv1, remainder = divmod(wv_nframes, chunk_size_frms)
         if is_verbose:
             print("\nNumber of chunks to work with: ", nchunks_wv1, "\n")
+
         # Create array for new audio
         new_wv_np = np.zeros((wv_np.data.shape))
 
