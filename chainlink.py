@@ -297,28 +297,37 @@ def normalize_chunk(chunk1, chunk2, normalization_type):
         return new_chunk2
     """
 
+    # Init normalized chunk as array of zeros
+    new_chunk2 = np.zeros(chunk2.shape)
+
     if normalization_type == "Max":
-        # TODO: Untested
-        new_chunk2 = np.zeros(chunk2.shape)
+        # TODO: Vectorize
         # Process channels separately. At this point in the script, the 
         # number of channels should be equal for chunks 1 and 2
         for chn in range(chunk2.shape[1]):
             max1 = np.max(chunk1[:, chn])
             max2 = np.max(chunk2[:, chn])
             new_chunk2[:, chn] = chunk2[:, chn] * max1/max2
-        
+            
     elif normalization_type == "Stdev":
-        # TODO: Untested
-        mean1 = np.mean(chunk1)
-        mean2 = np.mean(chunk2)
-        s1 = np.std(chunk1, ddof=1)
-        s2 = np.std(chunk2, ddof=1)
-        for chn in range(chunk2.shape[1]):
-            new_chunk2[:, chn] = mean1 + (chunk2[:, chn] - mean2) * s1/s2
+        mean1 = np.mean(chunk1, axis=0)
+        mean2 = np.mean(chunk2, axis=0)
+        s1 = np.std(chunk1, axis=0, ddof=1)
+        s2 = np.std(chunk2, axis=0, ddof=1)
+        stdev_ratio = s1/s2      
+        new_chunk2 = chunk2 - np.tile(mean2, (chunk2.shape[0],1))
+        new_chunk2 = np.multiply(new_chunk2, stdev_ratio)
+        new_chunk2 += np.tile(mean1, (chunk1.shape[0],1)) 
 
     # Make sure the new array has the same dtype as the original. This will lead 
     # to minor information loss as 64-bit float downcasts to 32-bit int at best.
     new_chunk2 = new_chunk2.astype(chunk2.dtype, casting='unsafe')
+
+    print(new_chunk2)
+    print(new_chunk2.T)
+
+    # sys.exit()
+        
 
     return new_chunk2
         
@@ -343,9 +352,6 @@ def convert_ms_to_frames(chunk_size_ms, framerate):
         chunk size in frames. Round down to nearest int.
     """
     return int(framerate * (chunk_size_ms / 1000.0))
-
-
-
 
 
 def main():
