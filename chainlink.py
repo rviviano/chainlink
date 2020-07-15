@@ -152,7 +152,7 @@ def check_options(input_dir1, input_dir2, output_dir, chunk_size, usage):
             traceback.print_exc(file=sys.stdout)
             is_invalid = True
 
-    # Verify that chunk size is between 10 and 1000
+    # Verify that chunk size is between 1 and 1000
     if isinstance(chunk_size, int):
         if (chunk_size < 1) or (chunk_size > 1000):
             print("Chunk size must be between 1 and 1000 (milliseconds)")
