@@ -48,7 +48,18 @@ class TestNormalizationMethods(unittest.TestCase):
         
 
     def test_stdev_normalization(self):
-        pass
+        answer = np.asarray([[44, 45, 21, 16, 38, 51, 81],
+                             [49, 63, 17, 22, 33, 50, 82]], 
+                            dtype=np.int32).T
+
+        result = cl.normalize_chunk(self.test_chunk1, self.test_chunk2, 'Stdev')
+
+        # Assert that the normalized array appears as expected
+        np.testing.assert_array_equal(result, answer)
+
+        # Assert that the datatype of the new array matches the old array
+        self.assertEqual(self.test_chunk2.dtype, result.dtype)
+
 
 
 if __name__ == '__main__':
