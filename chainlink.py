@@ -282,17 +282,18 @@ def normalize_chunk(chunk1, chunk2, normalization_type):
         best-fitting chunk from the set of wavs in input dir 2. Also takes the
         normalization_type parameter set by the user from the command line.
 
-        Roughly match the amplitude of the replacement chunk to the original 
-        chunk based on the normalization type.
+        Exactly or roughly match the amplitude of the replacement chunk to the 
+        original chunk based on the normalization type.
 
-        If not mono, scale each channel separately.
+        Scale each channel separately with vectorized code.
 
         If normalization_type == "Max", scale chunk two by the following
-        max(chunk1)/max(chunk2)
+        max(chunk1)/max(chunk2). This normalization exactly matches the peak
+        amplitudes.
 
-        If normalization_type == "Stdev", scale chunk two with the following
-        y = mean(chunk1) + (x - mean(chunk2)) * stdev(chunk1)/stdev(chunk2),
-        where x is original vector for chunk2 and y is the vector after scaling
+        If normalization_type == "Stdev", scale chunk2 with the following:
+        y = mean(chunk1) + (chunk2 - mean(chunk2)) * stdev(chunk1)/stdev(chunk2)
+        This normalization matches amplitude means and variabilities.
 
         return new_chunk2
     """
@@ -301,14 +302,10 @@ def normalize_chunk(chunk1, chunk2, normalization_type):
         new_chunk2 = np.multiply(chunk2, np.max(chunk1, axis=0)/np.max(chunk2, axis=0))
             
     elif normalization_type == "Stdev":
-        mean1 = np.mean(chunk1, axis=0)
-        mean2 = np.mean(chunk2, axis=0)
-        s1 = np.std(chunk1, axis=0, ddof=1)
-        s2 = np.std(chunk2, axis=0, ddof=1)
-        stdev_ratio = s1/s2      
-        new_chunk2 = chunk2 - np.tile(mean2, (chunk2.shape[0],1))
+        stdev_ratio = np.std(chunk1, axis=0, ddof=1)/np.std(chunk2, axis=0, ddof=1)     
+        new_chunk2 = chunk2 - np.tile(np.mean(chunk2, axis=0), (chunk2.shape[0],1))
         new_chunk2 = np.multiply(new_chunk2, stdev_ratio)
-        new_chunk2 += np.tile(mean1, (chunk1.shape[0],1)) 
+        new_chunk2 += np.tile(np.mean(chunk1, axis=0), (chunk1.shape[0],1)) 
 
     # Make sure the new array has the same dtype as the original. This will lead 
     # to minor information loss as 64-bit float downcasts to 32-bit int at best.
