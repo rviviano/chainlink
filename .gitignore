@@ -1,0 +1,2 @@
+# Ignore cached .pyc and .pyo
+./__pycache__
