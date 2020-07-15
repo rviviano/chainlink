@@ -102,6 +102,7 @@ def process_options():
                                "output=", "chunk_size="])
 
     for opt, arg in options:
+        # Mandatory arguments
         if opt == "--input1":
             if arg is not None:
                 input_dir1 = arg
@@ -118,6 +119,7 @@ def process_options():
             if arg is not None:
                 chunk_size = int(arg)
                 mandatory_checks += 1
+        # Optional options
         if opt == "-v":
             is_verbose = True
         if opt == "-m":
@@ -183,23 +185,15 @@ def check_options(input_dir1, input_dir2, output_dir, chunk_size, usage):
         is_invalid = True
 
     # Check that there are indeed wav files in input dirs 1 and 2
-    for f in os.listdir(input_dir1):
-        hdr = sndhdr.what(join(input_dir1, f))
-        if hdr is not None:
-            if hdr[0] == 'wav':
-                break
-    else:
-        print("No wavs in input directory 1")
-        is_invalid = True
-
-    for f in os.listdir(input_dir2):
-        hdr = sndhdr.what(join(input_dir2, f))
-        if hdr is not None:
-            if hdr[0] == 'wav':
-                break
-    else:
-        print("No wavs in input directory 2")
-        is_invalid = True
+    for d in enumerate((input_dir1, input_dir2)):
+        for f in os.listdir(d[1]):
+            hdr = sndhdr.what(join(d[1], f))
+            if hdr is not None:
+                if hdr[0] == 'wav':
+                    break
+        else:
+            print("No wavs in input directory " + str(d[0]+1))
+            is_invalid = True
 
     # Check if output directory exists. If it doesn't try to make the dir tree
     if not isdir(output_dir):
