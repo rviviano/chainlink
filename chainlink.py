@@ -297,17 +297,8 @@ def normalize_chunk(chunk1, chunk2, normalization_type):
         return new_chunk2
     """
 
-    # Init normalized chunk as array of zeros
-    new_chunk2 = np.zeros(chunk2.shape)
-
     if normalization_type == "Max":
-        # TODO: Vectorize
-        # Process channels separately. At this point in the script, the 
-        # number of channels should be equal for chunks 1 and 2
-        for chn in range(chunk2.shape[1]):
-            max1 = np.max(chunk1[:, chn])
-            max2 = np.max(chunk2[:, chn])
-            new_chunk2[:, chn] = chunk2[:, chn] * max1/max2
+        new_chunk2 = np.multiply(chunk2, np.max(chunk1, axis=0)/np.max(chunk2, axis=0))
             
     elif normalization_type == "Stdev":
         mean1 = np.mean(chunk1, axis=0)
@@ -321,13 +312,7 @@ def normalize_chunk(chunk1, chunk2, normalization_type):
 
     # Make sure the new array has the same dtype as the original. This will lead 
     # to minor information loss as 64-bit float downcasts to 32-bit int at best.
-    new_chunk2 = new_chunk2.astype(chunk2.dtype, casting='unsafe')
-
-    print(new_chunk2)
-    print(new_chunk2.T)
-
-    # sys.exit()
-        
+    new_chunk2 = new_chunk2.astype(chunk2.dtype, casting='unsafe')      
 
     return new_chunk2
         
