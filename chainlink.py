@@ -61,10 +61,10 @@ def process_options():
     -n            Normalization method (0-2): 0="None", 1="Max", 2="Stdev". 
                   Defaults to 1 ("Max").
 
-    -t            Specifies comparision type (0-2). 0="Pearson", 1="Manhattan",
-                  or 2="Mahalanobis". Defaults to "Pearson"
+    -t            Specifies comparision type (0-3). 0="Pearson", 1="Manhattan",
+                  2="Mahalanobis", or 3="Spectral". Defaults to "Pearson"
 
-    -f            "Full correlation." If this option is specified, than 
+    -f            "Full correlation." If this option is specified, then 
                   correlations are taken for every pair of channels across two
                   wavs, e.g., Left-Left, Left-Right, Right-Left, and Right-Right
                   for stereo audio. The average of these correlations is then
@@ -126,6 +126,7 @@ def process_options():
             is_mp = True
         if opt == "-c":
             cores = arg
+        # Set normalization type
         if opt == "-n":
             if arg == 0:
                 normalization_type = "None"
@@ -136,6 +137,7 @@ def process_options():
             else:
                 print("Invalid normalization type, ", arg, 
                       ". Defaulting to 'Max'")
+        # Set comparison type
         if opt == "-t":
             if arg == 0:
                 compare_type = "Pearson"
@@ -143,6 +145,8 @@ def process_options():
                 compare_type = "Manhattan"
             elif arg == 2:
                 compare_type = "Mahalanobis"
+            elif arg == 3:
+                compare_type = "Spectral"
             else:
                 print("Invalid comparison type, ", arg, 
                       ". Defaulting to 'Pearson'")
