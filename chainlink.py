@@ -11,6 +11,7 @@ from __future__ import print_function
 import os, sys, getopt, traceback
 import wave, sndhdr, wavio
 import numpy as np 
+import scipy.signal
 import multiprocessing as mp
 from os.path import isdir, isfile, abspath, join, basename, splitext
 
@@ -64,14 +65,6 @@ def process_options():
     -t            Specifies comparision type (0-3). 0="Pearson", 1="Manhattan",
                   2="Mahalanobis", or 3="Spectral". Defaults to "Pearson"
 
-    -f            "Full correlation." If this option is specified, then 
-                  correlations are taken for every pair of channels across two
-                  wavs, e.g., Left-Left, Left-Right, Right-Left, and Right-Right
-                  for stereo audio. The average of these correlations is then
-                  taken to determine if a chunk of wav 2 will be used in the
-                  resynthesis of wav 1. If this option is not specified,
-                  only corresponding channels are correlated, e.g., LL and RR.
-
     -h            Print this usage message and exit
     """
 
@@ -99,7 +92,7 @@ def process_options():
 
     # Get commandline options and arguments
     options, _ = getopt.getopt(sys.argv[1:], "hvmc:", ["input1=", "input2=", 
-                               "output=", "chunk_size="])
+                               "output=", "chunk_size=", "n=", "t="])
 
     for opt, arg in options:
         # Mandatory arguments
@@ -207,7 +200,7 @@ def check_options(input_dir1, input_dir2, output_dir, chunk_size, usage):
             traceback.print_exc(file=sys.stdout)
             is_invalid = True
 
-    # Verify that chunk size is between 10 and 1000
+    # Verify that chunk size is between 1 and 1000
     if isinstance(chunk_size, int):
         if (chunk_size < 1) or (chunk_size > 1000):
             print("Chunk size must be between 1 and 1000 (milliseconds)")
@@ -223,7 +216,9 @@ def check_options(input_dir1, input_dir2, output_dir, chunk_size, usage):
 
 
 def get_valid_wavs(input_dir):
-    """ Scan directory for wav files, store in list, then return the list. """
+    """ Scan directory for wav files, store in list, then return the list. 
+        At the momemt (07/2020) I am fairly certain that sndhdr skips 32bit
+        float wavs"""
     valid_wavs = []
 
     for f in os.listdir(input_dir):
@@ -244,10 +239,6 @@ def load_wav(wave_filepath):
 
         Output: Complete wave_read object and the named tuple with params
     """
-    # TODO: Load addition parameters, nchannels and sample width, to help with
-    # converting wav files in input dir 2 to have the same parameters as the 
-    # wav file from input dir 1 
-
     # Open wav_read object and extract useful parameter information
     wav = wave.open(wave_filepath, 'rb')
     params = wav.getparams()
@@ -263,16 +254,43 @@ def load_wav(wave_filepath):
 
 
 def write_wav():
-    # TODO
+    # TODO: But this might be unnecessary
     pass
 
 
-def match_wav_params():
+def match_wav_params(wv1_np, wv2_np, params1, params2):
     """
-        Takes two wav files and their parameters and and converts the second 
-        wav to have the same parameters as the first.
+        Takes a wav file, its parameters, and the parameters to convert to.
     """
+    # First check that sample rates are consistent, if not, resample wv2
+
+    # Then, check if number of channels are correct. If channel count differs,
+    # then take the average of wv2's channels and populate the missing channels 
+    # with that signal (in the case of scaling up to more channels). If merging
+    # to mono, just use the average as the one channel.
+
+    # Make sure that the datatypes match between arrays
+    print(params1)
+    print(params2)
+    print(type(wv2_np))
+    print(type(wv2_np.data))
+    print(wv2_np.data.shape)
+    print(wv1_np)
+    print(wv2_np)
+    print(wv2_np.data[:10,:])
+
+    print(params1.sampwidth)
+    new_wav_data = np.zeros((params2.nframes, params1.nchannels))
+    print(new_wav_data.shape)
+    # Samplewidth of 3 == samplewidth of 4. Numpy arrays don't support 24bit
+    # so the 24-bit int wavs are cast to 32-bit int arrays.
+    
+    # If downgrading to a smaller sample width, simply truncate. Concatenative
+    # synthesis is going to sound glitchy anyway so any noise introduced by 
+    # truncation will go with the aesthetic
+    sys.exit()
     # TODO
+
     pass
 
 
@@ -308,7 +326,7 @@ def normalize_chunk(chunk1, chunk2, normalization_type):
         new_chunk2 += np.tile(np.mean(chunk1, axis=0), (chunk1.shape[0],1)) 
 
     # Make sure the new array has the same dtype as the original. This will lead 
-    # to minor information loss as 64-bit float downcasts to 32-bit int at best.
+    # to minor information loss as 64-bit may downcast to 32-bit at best.
     new_chunk2 = new_chunk2.astype(chunk2.dtype, casting='unsafe')      
 
     return new_chunk2
@@ -335,6 +353,10 @@ def convert_ms_to_frames(chunk_size_ms, framerate):
     """
     return int(framerate * (chunk_size_ms / 1000.0))
 
+
+def declick_wav():
+    pass
+    
 
 def main():
     """
@@ -387,8 +409,10 @@ def main():
         for g in input2_wavs:
             if is_verbose:
                 print('Analyzing: ', g)
+            # Load wav file to compare wv1 against
+            wv2, wv2_params, wv2_framerate, wv2_nframes, wv2_np = load_wav(g)
             # TODO: convert wv2_np to have the same parameters as wv1_np
-            wv2, wv_params2, wv_framerate2, wv2_nframes, wv2_np = load_wav(g)
+            wv2_np = match_wav_params(wv_np, wv2_np, wv_params, wv2_params)
             # TODO: Write convert wav function that takes current wav parameters
             #       (e.g. bit depth sample rate, nchannels, and converts
             nchunks_wv2, _ = divmod(wv2_nframes, chunk_size_frms)
@@ -399,7 +423,7 @@ def main():
                 # TODO: Implement slow, medium, and fast modes that move 1/8th, 
                 #       1/4, 1/2, or a full chunk at a time. Currently, the code 
                 #       moves a full chunk at a time. Default to 1/4 window move 
-                #       at a time to mitigate phasing issues.
+                #       at a time.
                 for j in range(nchunks_wv2):
                     # TODO: Implement different ways of doing this 
                     #       similarity check. Maybe implement mahalanobis and
